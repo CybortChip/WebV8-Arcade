@@ -1,4 +1,8 @@
 ﻿import { ArcadeInputSystem } from './inputManager';
+import { SaveStateManager } from './storage/saveStateManager';
+
+const saveManager = new SaveStateManager();
+saveManager.init();
 
 const WIDTH = 640;
 const HEIGHT = 480;
@@ -146,13 +150,9 @@ worker.onmessage = (e: MessageEvent) => {
     const buffer = payload.buffer;
     lastKnownBuffer = buffer;
 
-    try {
-      // Guardar también en IndexedDB / localStorage si es menor a 5MB
-      if (buffer.byteLength < 5 * 1024 * 1024) {
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-        localStorage.setItem(`savestate_${currentRomName}`, base64);
-      }
-    } catch (_) {}
+    saveManager.saveState(currentRomName, buffer).catch((err) => {
+      console.error('[Main] Failed to save state to IndexedDB', err);
+    });
 
     if (isExportPending) {
       isExportPending = false;
@@ -183,16 +183,10 @@ function triggerSaveState(exportToFile = false) {
   worker.postMessage({ type: 'SAVE_STATE' });
 }
 
-function triggerLoadState() {
-  const savedData = localStorage.getItem(`savestate_${currentRomName}`);
-  if (savedData) {
-    const binaryString = atob(savedData);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    worker.postMessage({ type: 'LOAD_STATE', payload: { buffer: bytes.buffer } }, [bytes.buffer]);
+async function triggerLoadState() {
+  const buffer = await saveManager.loadState(currentRomName);
+  if (buffer) {
+    worker.postMessage({ type: 'LOAD_STATE', payload: { buffer } }, [buffer]);
     return;
   }
   worker.postMessage({ type: 'LOAD_STATE' });
@@ -344,6 +338,14 @@ romInput.addEventListener('change', async () => {
     },
     [buffer]
   );
+
+  setTimeout(async () => {
+    const savedState = await saveManager.loadState(currentRomName);
+    if (savedState) {
+       console.log(`[Main] Auto-loading state for ${currentRomName}`);
+       worker.postMessage({ type: 'LOAD_STATE', payload: { buffer: savedState } }, [savedState]);
+    }
+  }, 1000);
 });
 
 toggleBtn.addEventListener('click', (e) => {
