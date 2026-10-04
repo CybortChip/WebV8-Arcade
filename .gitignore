@@ -1,0 +1,17 @@
+﻿node_modules/
+dist/
+dist-ssr/
+*.local
+src_backup_stable/
+index_backup_stable.html
+*.wasm
+*.bin
+*.iso
+*.cue
+*.state*
+*.sav
+*.srm
+.vscode/
+.idea/
+.DS_Store
+*.log

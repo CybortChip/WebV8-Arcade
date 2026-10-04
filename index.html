@@ -1,0 +1,430 @@
+﻿<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebV8-Arcade</title>
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#090d16" />
+    <style>
+      :root {
+        --bg-color: #090d16;
+        --panel-bg: #0f172a;
+        --border: rgba(255, 255, 255, 0.12);
+        --accent: #38bdf8;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+      body {
+        background: var(--bg-color);
+        color: #f1f5f9;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        padding: 24px;
+        overflow-x: hidden;
+      }
+
+      .arcade-layout {
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+        gap: 20px;
+        max-width: 1000px;
+        width: 100%;
+        justify-content: center;
+      }
+
+      .arcade-main-column {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .arcade-cabinet {
+        position: relative;
+        background: #000;
+        border-radius: 12px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 0 1px var(--border);
+        overflow: hidden;
+        line-height: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        aspect-ratio: 4 / 3;
+        width: 640px;
+        height: 480px;
+      }
+
+      .arcade-cabinet:fullscreen {
+        width: 100vw !important;
+        height: 100vh !important;
+        border-radius: 0;
+        box-shadow: none;
+        border: none;
+        background: #000;
+      }
+
+      canvas {
+        display: block;
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: contain;
+        aspect-ratio: 4 / 3;
+        image-rendering: pixelated;
+      }
+
+      .crt-scanlines {
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        pointer-events: none;
+        z-index: 40;
+        display: none;
+        background: repeating-linear-gradient(
+          to bottom,
+          transparent 0px,
+          transparent 1.5px,
+          rgba(0, 0, 0, 0.28) 1.5px,
+          rgba(0, 0, 0, 0.28) 3px
+        );
+      }
+
+      .crt-glow {
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        pointer-events: none;
+        z-index: 41;
+        display: none;
+        background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.04) 0%, transparent 60%, rgba(0, 0, 0, 0.45) 100%),
+                    repeating-linear-gradient(90deg, rgba(255, 0, 0, 0.02) 0px, rgba(0, 255, 0, 0.015) 1px, rgba(0, 0, 255, 0.02) 2px, transparent 3px);
+      }
+
+      .arcade-cabinet.fx-scanlines-active .crt-scanlines {
+        display: block;
+      }
+      .arcade-cabinet.fx-glow-active .crt-glow {
+        display: block;
+      }
+
+      .fullscreen-overlay-btn {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: #f1f5f9;
+        width: 34px;
+        height: 34px;
+        border-radius: 6px;
+        font-size: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        z-index: 60;
+        backdrop-filter: blur(4px);
+        opacity: 0;
+        transition: opacity 0.25s ease, background 0.15s ease, transform 0.15s ease;
+        user-select: none;
+      }
+      .arcade-cabinet:hover .fullscreen-overlay-btn,
+      .fullscreen-overlay-btn:focus-visible {
+        opacity: 1;
+      }
+      .fullscreen-overlay-btn:hover {
+        background: rgba(30, 41, 59, 0.9);
+        border-color: #38bdf8;
+        transform: scale(1.05);
+      }
+
+      .save-toast {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        background: rgba(16, 185, 129, 0.95);
+        color: #fff;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: normal;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        transform: translateY(-4px);
+        z-index: 50;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(4px);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+      }
+      .save-toast.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .arcade-toolbar-external {
+        width: 640px;
+        background: var(--panel-bg);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 8px 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      }
+
+      .toolbar-group {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .icon-btn, .file-label {
+        background: #1e293b;
+        border: 1px solid var(--border);
+        color: #f1f5f9;
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        user-select: none;
+      }
+      .icon-btn:hover, .file-label:hover {
+        background: #334155;
+        border-color: #38bdf8;
+      }
+      .icon-btn:active {
+        transform: scale(0.96);
+      }
+
+      .ui-select {
+        background: #1e293b;
+        border: 1px solid var(--border);
+        color: #f1f5f9;
+        padding: 6px 8px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        outline: none;
+        cursor: pointer;
+      }
+      .ui-select:hover {
+        border-color: #38bdf8;
+      }
+
+      .arcade-sidebar {
+        width: 220px;
+        background: var(--panel-bg);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .sidebar-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 8px;
+      }
+      .filter-option {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        cursor: pointer;
+        user-select: none;
+      }
+      .filter-option input[type="checkbox"] {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 16px;
+        height: 16px;
+        border: 1px solid var(--border);
+        background: #1e293b;
+        border-radius: 4px;
+        cursor: pointer;
+        display: grid;
+        place-content: center;
+        margin-top: 2px;
+        transition: all 0.15s ease;
+      }
+      .filter-option input[type="checkbox"]:checked {
+        background: #0284c7;
+        border-color: #38bdf8;
+      }
+      .filter-option input[type="checkbox"]:checked::before {
+        content: "✔";
+        font-size: 11px;
+        color: #fff;
+        line-height: 1;
+      }
+      .filter-desc {
+        display: flex;
+        flex-direction: column;
+      }
+      .filter-desc span {
+        font-size: 12px;
+        font-weight: 600;
+        color: #f1f5f9;
+      }
+      .filter-desc small {
+        font-size: 10px;
+        color: #94a3b8;
+        line-height: 1.3;
+        margin-top: 2px;
+      }
+
+      .settings-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0, 0, 0, 0.75);
+        backdrop-filter: blur(6px);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+      }
+      .settings-overlay.active {
+        display: flex;
+      }
+
+      .settings-modal {
+        background: #0f172a;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        width: 520px;
+        max-width: 90vw;
+        padding: 20px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9);
+        z-index: 10000;
+      }
+      .settings-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+      .settings-header h3 { font-size: 16px; font-weight: 700; color: #fff; }
+      .close-btn { background: none; border: none; color: #94a3b8; font-size: 20px; cursor: pointer; padding: 4px; }
+      .close-btn:hover { color: #fff; }
+
+      .mapping-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        font-size: 13px;
+      }
+      .btn-assign {
+        background: #2563eb;
+        border: none;
+        color: #fff;
+        padding: 4px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .btn-assign.waiting { background: #eab308; color: #000; }
+    </style>
+  </head>
+  <body>
+    <div class="arcade-layout">
+      <div class="arcade-main-column">
+        <div id="arcade-cabinet" class="arcade-cabinet">
+          <canvas id="viewport" width="640" height="480"></canvas>
+          <div class="crt-scanlines"></div>
+          <div class="crt-glow"></div>
+          <div id="save-toast" class="save-toast">State Saved</div>
+          <button id="btn-fullscreen-overlay" class="fullscreen-overlay-btn" type="button" title="Pantalla completa (Alt+Enter)">⛶</button>
+        </div>
+
+        <div class="arcade-toolbar-external">
+          <div class="toolbar-group">
+            <label for="rom-input" class="file-label">📁 ROM</label>
+            <input type="file" id="rom-input" accept=".bin,.iso,.cue,.img" style="display: none;" />
+            <button id="btn-toggle" class="icon-btn" type="button" title="Pausar / Reanudar">⏸️</button>
+            
+            <button id="btn-save-state" class="icon-btn" type="button" title="Quick Save (F2)">💾 Save</button>
+            <button id="btn-load-state" class="icon-btn" type="button" title="Quick Load (F4)">📂 Load</button>
+            
+            <button id="btn-export-file" class="icon-btn" type="button" title="Download .state file">⬇️ Export</button>
+            <label for="state-file-input" class="icon-btn" title="Upload .state file" style="margin: 0;">⬆️ Import</label>
+            <input type="file" id="state-file-input" accept=".state,.sav,.bin" style="display: none;" />
+          </div>
+
+          <div class="toolbar-group">
+            <select id="fps-selector" class="ui-select" title="Velocidad de emulación">
+              <option value="60" selected>60 FPS (1.0x)</option>
+              <option value="30">30 FPS (0.5x)</option>
+              <option value="90">90 FPS (1.5x)</option>
+              <option value="120">120 FPS (2.0x)</option>
+            </select>
+
+            <button id="btn-open-settings" class="icon-btn" type="button" title="Configurar controles">⚙️</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel Lateral Retro enfocado exclusivamente en Shaders CRT -->
+      <div class="arcade-sidebar">
+        <div class="sidebar-title">Filtros Retro</div>
+
+        <label class="filter-option">
+          <input type="checkbox" id="chk-scanlines" />
+          <div class="filter-desc">
+            <span>📺 CRT Scanlines</span>
+            <small>Líneas de escaneo calibradas estilo Trinitron.</small>
+          </div>
+        </label>
+
+        <label class="filter-option">
+          <input type="checkbox" id="chk-glow" />
+          <div class="filter-desc">
+            <span>💡 Phosphor Glow</span>
+            <small>Viñeta analógica y submalla RGB.</small>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <div id="settings-overlay" class="settings-overlay">
+      <div class="settings-modal">
+        <div class="settings-header">
+          <h3>Configuración de Controles</h3>
+          <button id="btn-close-settings" class="close-btn" type="button">&times;</button>
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+          <button id="btn-autoconfig" class="icon-btn" type="button">Autoconfigurar</button>
+          <button id="btn-save-cfg" class="icon-btn" type="button">Guardar</button>
+          <button id="btn-load-cfg" class="icon-btn" type="button">Cargar</button>
+          <input type="file" id="file-cfg-input" style="display: none;" />
+        </div>
+
+        <div id="gamepad-status-text" style="font-size: 12px; color: #64748b; margin-bottom: 10px;">Mueve el mando para detectarlo</div>
+        <div id="gamepad-card" style="display: none; background: #090d16; padding: 10px; border-radius: 6px; margin-bottom: 10px; font-size: 12px;">
+          <div id="gamepad-title" style="font-weight: 600; color: #38bdf8;"></div>
+          <div id="gamepad-active-input" style="color: #94a3b8; margin-top: 4px;"></div>
+        </div>
+
+        <div id="mapping-list" style="max-height: 240px; overflow-y: auto;"></div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

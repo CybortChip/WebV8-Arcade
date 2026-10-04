@@ -1,0 +1,19 @@
+{
+  "name": "WebV8-Arcade",
+  "short_name": "WebV8-Arcade",
+  "description": "Emulador PS1 Arcade Web",
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "theme_color": "#090d16",
+  "background_color": "#090d16",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
