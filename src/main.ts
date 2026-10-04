@@ -17,6 +17,8 @@ inputSystem.onGamepadDisconnected = () => showToast(`🔌 Mando desconectado`, t
 
 const cabinet = document.getElementById('arcade-cabinet') as HTMLDivElement;
 const canvas = document.getElementById('viewport') as HTMLCanvasElement;
+const loadingOverlay = document.getElementById('loading-overlay') as HTMLDivElement;
+const loadingText = document.getElementById('loading-text') as HTMLDivElement;
 const toggleBtn = document.getElementById('btn-toggle') as HTMLButtonElement;
 const btnFullscreenOverlay = document.getElementById('btn-fullscreen-overlay') as HTMLButtonElement;
 const romInput = document.getElementById('rom-input') as HTMLInputElement;
@@ -333,22 +335,35 @@ romInput.addEventListener('change', async () => {
   if (!file) return;
 
   currentRomName = file.name.replace(/\.[^/.]+$/, '');
-  const buffer = await file.arrayBuffer();
-  worker.postMessage(
-    {
-      type: 'LOAD_ROM',
-      payload: { name: file.name, buffer },
-    },
-    [buffer]
-  );
+  
+  loadingOverlay.classList.add('active');
+  loadingText.textContent = `Leyendo ${file.name}...`;
 
-  setTimeout(async () => {
-    const savedState = await saveManager.loadState(currentRomName);
-    if (savedState) {
-       console.log(`[Main] Auto-loading state for ${currentRomName}`);
-       worker.postMessage({ type: 'LOAD_STATE', payload: { buffer: savedState } }, [savedState]);
-    }
-  }, 1000);
+  try {
+    const buffer = await file.arrayBuffer();
+    loadingText.textContent = 'Montando ROM...';
+    
+    worker.postMessage(
+      {
+        type: 'LOAD_ROM',
+        payload: { name: file.name, buffer },
+      },
+      [buffer]
+    );
+
+    setTimeout(async () => {
+      const savedState = await saveManager.loadState(currentRomName);
+      if (savedState) {
+         console.log(`[Main] Auto-loading state for ${currentRomName}`);
+         worker.postMessage({ type: 'LOAD_STATE', payload: { buffer: savedState } }, [savedState]);
+      }
+      loadingOverlay.classList.remove('active');
+    }, 1000);
+  } catch (err) {
+    console.error('[Main] Error al cargar la ROM:', err);
+    showToast('Error de memoria al leer la ROM', true);
+    loadingOverlay.classList.remove('active');
+  }
 });
 
 toggleBtn.addEventListener('click', (e) => {

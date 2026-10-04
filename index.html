@@ -339,6 +339,40 @@
         font-weight: 600;
       }
       .btn-assign.waiting { background: #eab308; color: #000; }
+      .loading-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.8);
+        backdrop-filter: blur(4px);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 70;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+      }
+      .loading-overlay.active {
+        opacity: 1;
+        pointer-events: all;
+      }
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid rgba(255, 255, 255, 0.1);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 12px;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .loading-text {
+        font-size: 14px;
+        font-weight: 600;
+        color: #f1f5f9;
+        letter-spacing: 0.5px;
+      }
     </style>
   </head>
   <body>
@@ -349,13 +383,17 @@
           <div class="crt-scanlines"></div>
           <div class="crt-glow"></div>
           <div id="save-toast" class="save-toast">State Saved</div>
+          <div id="loading-overlay" class="loading-overlay">
+            <div class="spinner"></div>
+            <div id="loading-text" class="loading-text">Cargando...</div>
+          </div>
           <button id="btn-fullscreen-overlay" class="fullscreen-overlay-btn" type="button" title="Pantalla completa (Alt+Enter)">⛶</button>
         </div>
 
         <div class="arcade-toolbar-external">
           <div class="toolbar-group">
             <label for="rom-input" class="file-label">📁 ROM</label>
-            <input type="file" id="rom-input" accept=".bin,.iso,.cue,.img" style="display: none;" />
+            <input type="file" id="rom-input" accept=".bin,.iso,.cue,.img,.chd,.pbp" style="display: none;" />
             <button id="btn-toggle" class="icon-btn" type="button" title="Pausar / Reanudar">⏸️</button>
             
             <button id="btn-save-state" class="icon-btn" type="button" title="Quick Save (F2)">💾 Save</button>
