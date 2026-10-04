@@ -30,6 +30,8 @@ export class ArcadeInputSystem {
   public deadzone: number = 0.25;
   private listeningActionId: string | null = null;
   private onRemapCallback: (() => void) | null = null;
+  public onGamepadConnected?: (id: string) => void;
+  public onGamepadDisconnected?: (id: string) => void;
 
   constructor(sharedBuffer: SharedArrayBuffer, offset: number) {
     this.inputView = new Int32Array(sharedBuffer, offset, 1);
@@ -83,11 +85,17 @@ export class ArcadeInputSystem {
       if (this.activeGamepadIndex === null) {
         this.activeGamepadIndex = e.gamepad.index;
       }
+      if (this.onGamepadConnected) {
+        this.onGamepadConnected(e.gamepad.id);
+      }
     });
 
     window.addEventListener('gamepaddisconnected', (e) => {
       if (this.activeGamepadIndex === e.gamepad.index) {
         this.activeGamepadIndex = null;
+      }
+      if (this.onGamepadDisconnected) {
+        this.onGamepadDisconnected(e.gamepad.id);
       }
     });
   }

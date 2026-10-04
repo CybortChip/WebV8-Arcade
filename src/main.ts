@@ -12,6 +12,9 @@ const INPUT_SIZE = 4;
 const sharedBuffer = new SharedArrayBuffer(VIDEO_SIZE + INPUT_SIZE);
 const inputSystem = new ArcadeInputSystem(sharedBuffer, VIDEO_SIZE);
 
+inputSystem.onGamepadConnected = (id) => showToast(`🎮 Mando conectado: ${id.substring(0, 20)}`);
+inputSystem.onGamepadDisconnected = () => showToast(`🔌 Mando desconectado`, true);
+
 const cabinet = document.getElementById('arcade-cabinet') as HTMLDivElement;
 const canvas = document.getElementById('viewport') as HTMLCanvasElement;
 const toggleBtn = document.getElementById('btn-toggle') as HTMLButtonElement;
