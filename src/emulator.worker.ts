@@ -124,6 +124,63 @@ const regulatedRAF = (callback: FrameRequestCallback): number => {
   }, delay);
 };
 
+// WebAudio Shim con currentTime dinámico para evitar bloqueo en RWA
+const audioStartTime = performance.now();
+
+(self as any).AudioContext = class {
+  sampleRate = 44100;
+  state = 'running';
+  destination = {};
+
+  get currentTime() {
+    return (performance.now() - audioStartTime) / 1000;
+  }
+
+  createBuffer(_channels: number, length: number, sampleRate: number) {
+    const left = new Float32Array(length);
+    const right = new Float32Array(length);
+    return {
+      duration: length / sampleRate,
+      getChannelData: (ch: number) => (ch === 0 ? left : right),
+      _left: left,
+      _right: right
+    };
+  }
+
+  createBufferSource() {
+    let internalBuffer: any = null;
+    return {
+      get buffer() { return internalBuffer; },
+      set buffer(b: any) { internalBuffer = b; },
+      connect: () => {},
+      start: () => {
+        if (internalBuffer && internalBuffer._left && internalBuffer._right) {
+          const leftCopy = new Float32Array(internalBuffer._left);
+          const rightCopy = new Float32Array(internalBuffer._right);
+          self.postMessage(
+            { type: 'AUDIO_CHUNK', payload: { left: leftCopy, right: rightCopy } },
+            [leftCopy.buffer, rightCopy.buffer]
+          );
+        }
+      }
+    };
+  }
+
+  resume() {
+    this.state = 'running';
+    return Promise.resolve();
+  }
+
+  close() {
+    this.state = 'closed';
+  }
+
+  addEventListener() {}
+  removeEventListener() {}
+};
+
+(self as any).webkitAudioContext = (self as any).AudioContext;
+
 const windowShim: any = {
   getComputedStyle: getComputedStyleShim,
   innerWidth: CANVAS_WIDTH,
@@ -134,6 +191,8 @@ const windowShim: any = {
   screen: { width: 1920, height: 1080 },
   ResizeObserver: (self as any).ResizeObserver,
   MutationObserver: (self as any).MutationObserver,
+  AudioContext: (self as any).AudioContext,
+  webkitAudioContext: (self as any).AudioContext,
   matchMedia: () => ({ matches: false, addListener: () => {}, removeListener: () => {} }),
   addEventListener: (type: string, listener: Function) => {
     if (!eventListeners[type]) eventListeners[type] = [];
@@ -144,7 +203,7 @@ const windowShim: any = {
     eventListeners[type] = eventListeners[type].filter((fn) => fn !== listener);
   },
   requestAnimationFrame: regulatedRAF,
-  cancelAnimationFrame: (id: number) => self.clearTimeout(id),
+  cancelAnimationFrame: (id: number) => self.clearTimeout(id)
 };
 
 (self as any).requestAnimationFrame = regulatedRAF;
@@ -291,7 +350,6 @@ function saveState() {
     retries++;
     const files = getAllFileSystemFiles();
 
-    // Prioridad absoluta a la ruta de PCSX-ReARMed confirmada en consola
     const primaryPath = `/home/web_user/retroarch/userdata/states/PCSX-ReARMed/${loadedRomBaseName}.state`;
     try {
       const data = coreModule.FS.readFile(primaryPath);
@@ -303,7 +361,6 @@ function saveState() {
       }
     } catch (_) {}
 
-    // Búsqueda en otros archivos .state
     const stateFiles = files
       .filter((f) => f.path.includes('.state') && f.size > 50000)
       .sort((a, b) => b.size - a.size);
@@ -337,7 +394,6 @@ function loadState(buffer?: ArrayBuffer) {
     const bytes = new Uint8Array(buffer);
     console.log(`[Worker] Preparando estructura de directorios e inyectando ${bytes.length} bytes...`);
 
-    // Aseguramos la existencia de toda la jerarquía de carpetas
     const requiredDirs = [
       '/home',
       '/home/web_user',
@@ -355,7 +411,6 @@ function loadState(buffer?: ArrayBuffer) {
       try { fs.mkdirTree(d); } catch (_) {}
     }
 
-    // Ruta confirmada en consola
     const officialBase = `/home/web_user/retroarch/userdata/states/PCSX-ReARMed/${loadedRomBaseName}`;
 
     const criticalTargets = [
@@ -381,7 +436,6 @@ function loadState(buffer?: ArrayBuffer) {
     }
   }
 
-  // Esperar 200ms para asegurar flush en el FS y enviar F4
   setTimeout(() => {
     console.log('[Worker] Disparando tecla F4 a RetroArch...');
     sendKey('F4', 'F4', 115);
@@ -462,9 +516,14 @@ self.onmessage = async (e: MessageEvent) => {
       loadedRomBaseName = rawName.replace(/\.[^/.]+$/, '');
       console.log(`[Worker] Montando ROM: "${loadedRomBaseName}"`);
 
-      // Creamos de antemano el árbol de carpetas de estados para este core
       try {
         coreModule.FS.mkdirTree('/home/web_user/retroarch/userdata/states/PCSX-ReARMed');
+      } catch (_) {}
+
+      try {
+        const cfgContent = 'audio_enable = "true"\naudio_driver = "rsound"\naudio_sync = "false"\n';
+        coreModule.FS.writeFile('/retroarch.cfg', cfgContent);
+        coreModule.FS.writeFile('/home/web_user/retroarch/userdata/retroarch.cfg', cfgContent);
       } catch (_) {}
 
       const romBytes = new Uint8Array(payload.buffer);
@@ -494,3 +553,4 @@ self.onmessage = async (e: MessageEvent) => {
       break;
   }
 };
+

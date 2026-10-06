@@ -1,8 +1,11 @@
 ﻿import { ArcadeInputSystem } from './inputManager';
 import { SaveStateManager } from './storage/saveStateManager';
+import { ArcadeAudioManager } from './audioManager';
 
 const saveManager = new SaveStateManager();
 saveManager.init();
+
+const audioManager = new ArcadeAudioManager();
 
 const WIDTH = 640;
 const HEIGHT = 480;
@@ -20,6 +23,7 @@ const canvas = document.getElementById('viewport') as HTMLCanvasElement;
 const loadingOverlay = document.getElementById('loading-overlay') as HTMLDivElement;
 const loadingText = document.getElementById('loading-text') as HTMLDivElement;
 const toggleBtn = document.getElementById('btn-toggle') as HTMLButtonElement;
+const audioBtn = document.getElementById('btn-audio') as HTMLButtonElement;
 const btnFullscreenOverlay = document.getElementById('btn-fullscreen-overlay') as HTMLButtonElement;
 const romInput = document.getElementById('rom-input') as HTMLInputElement;
 const fpsSelector = document.getElementById('fps-selector') as HTMLSelectElement;
@@ -29,6 +33,7 @@ const chkGlow = document.getElementById('chk-glow') as HTMLInputElement;
 
 const btnSaveState = document.getElementById('btn-save-state') as HTMLButtonElement;
 const btnLoadState = document.getElementById('btn-load-state') as HTMLButtonElement;
+const btnClearState = document.getElementById('btn-clear-state') as HTMLButtonElement;
 const btnExportFile = document.getElementById('btn-export-file') as HTMLButtonElement;
 const stateFileInput = document.getElementById('state-file-input') as HTMLInputElement;
 const saveToast = document.getElementById('save-toast') as HTMLDivElement;
@@ -180,8 +185,19 @@ worker.onmessage = (e: MessageEvent) => {
     showToast('State Loaded');
   } else if (type === 'STATE_ERROR') {
     showToast('State Operation Failed', true);
+  } else if (type === 'AUDIO_CHUNK') {
+    audioManager.playChunk(payload.left, payload.right);
   }
 };
+
+audioBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const isActive = audioManager.toggleAudio();
+  audioBtn.textContent = isActive ? '🔊 Audio' : '🔇 Audio';
+  if (isActive) {
+    showToast('Audio Activado');
+  }
+});
 
 function triggerSaveState(exportToFile = false) {
   isExportPending = exportToFile;
@@ -199,6 +215,12 @@ async function triggerLoadState() {
 
 btnSaveState.addEventListener('click', () => triggerSaveState(false));
 btnLoadState.addEventListener('click', triggerLoadState);
+
+btnClearState.addEventListener('click', async () => {
+  await saveManager.deleteState(currentRomName);
+  lastKnownBuffer = null;
+  showToast('Save State Borrado');
+});
 
 btnExportFile.addEventListener('click', () => {
   triggerSaveState(true);
@@ -351,14 +373,9 @@ romInput.addEventListener('change', async () => {
       [buffer]
     );
 
-    setTimeout(async () => {
-      const savedState = await saveManager.loadState(currentRomName);
-      if (savedState) {
-         console.log(`[Main] Auto-loading state for ${currentRomName}`);
-         worker.postMessage({ type: 'LOAD_STATE', payload: { buffer: savedState } }, [savedState]);
-      }
+    setTimeout(() => {
       loadingOverlay.classList.remove('active');
-    }, 1000);
+    }, 500);
   } catch (err) {
     console.error('[Main] Error al cargar la ROM:', err);
     showToast('Error de memoria al leer la ROM', true);

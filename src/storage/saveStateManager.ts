@@ -65,4 +65,22 @@ export class SaveStateManager {
       };
     });
   }
+
+  public async deleteState(romName: string): Promise<void> {
+    if (!this.db) await this.init();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([this.storeName], 'readwrite');
+      const store = transaction.objectStore(this.storeName);
+
+      const request = store.delete(romName);
+
+      request.onsuccess = () => resolve();
+
+      request.onerror = (event) => {
+        console.error('[SaveStateManager] Error borrando estado:', (event.target as IDBRequest).error);
+        reject((event.target as IDBRequest).error);
+      };
+    });
+  }
 }
