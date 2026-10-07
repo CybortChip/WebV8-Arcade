@@ -1,12 +1,10 @@
-const CACHE_NAME = 'webv8-arcade-cache-v1';
+const CACHE_NAME = 'webv8-arcade-cache-v2';
 
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/icon.svg',
-  '/cores/pcsx_rearmed_libretro.js',
-  '/cores/pcsx_rearmed_libretro.wasm'
+  '/icon.svg'
 ];
 
 self.addEventListener('install', (event) => {
@@ -50,7 +48,7 @@ self.addEventListener('fetch', (event) => {
       if (cachedResponse) {
         return setHeaders(cachedResponse);
       }
-      
+
       return fetchPromise.then(res => res || new Response('Offline', { status: 503 }));
     })
   );
@@ -61,9 +59,9 @@ function setHeaders(response) {
   if (response.type === 'opaque' || response.type === 'opaqueRedirect') {
     return response;
   }
-  
+
   const newHeaders = new Headers(response.headers);
-  // PRESERVAR CABECERAS COOP/COEP ESTRICTAMENTE
+  // Preservar cabeceras COOP/COEP requeridas por WebAssembly y SharedArrayBuffer
   newHeaders.set('Cross-Origin-Opener-Policy', 'same-origin');
   newHeaders.set('Cross-Origin-Embedder-Policy', 'require-corp');
 
